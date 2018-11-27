@@ -13,6 +13,7 @@ from settings import *
 from sprites import *
 from os import path
 from random import choice, randrange
+import time
 
 
 class Game:
@@ -37,7 +38,7 @@ class Game:
         try:
             with open(path.join(self.dir, HIGH_SCORE_FILE), 'r') as f:
                 self.highscore = int(f.read())
-        except:
+        except FileNotFoundError:
             self.highscore = 0
 
         # Load Images / Background
@@ -45,11 +46,33 @@ class Game:
         self.planet_images = []
         for i in range(1, 11):
             self.planet_images.append(pg.image.load(path.join(self.img_dir, 'planets', 'p{}shaded.png'.format(i))).convert())
+        self.moon_images = []
+        for i in range(1, 4):
+            self.moon_images.append(pg.image.load(path.join(self.img_dir, 'moons', 'Moon{}.png'.format(i))).convert())
         self.background = pg.image.load(path.join(self.img_dir, "starsBackground.png")).convert()
         self.background_rect = self.background.get_rect()
 
+        # BUILDING EXPLOSION ANIMATIONS
+        self.explosion_animation = {}
+        self.explosion_animation['lg'] = []
+        self.explosion_animation['sm'] = []
+        self.explosion_animation['player'] = []
+        for i in range(0, 9):
+            filename = 'tank_explosion{}.png'.format(i)
+            img = pg.image.load(path.join(self.img_dir, 'explosions', filename)).convert()
+            img.set_colorkey(BLACK)
+            img_lg = pg.transform.scale(img, (50, 50))
+            self.explosion_animation['lg'].append(img_lg)
+            img_sm = pg.transform.scale(img, (20, 20))
+            self.explosion_animation['sm'].append(img_sm)
+            filename = 'sonicExplosion0{}.png'.format(i)
+            img = pg.image.load(path.join(self.img_dir, 'explosions', filename)).convert()
+            self.explosion_animation['player'].append(img)
+
         # Load Sounds / Music
+        self.crash_sound = pg.mixer.Sound(path.join(self.snd_dir, CRASH_SND_FILE))
         self.jump_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SND_FILE))
+
 
     def new(self):
         """New Game / Reset Game"""
@@ -62,6 +85,7 @@ class Game:
         self.stars = pg.sprite.Group()
         self.player = Player(self)
         self.all_sprites.add(self.player)
+        self.added_planets = 0
 
         # TODO: self.something_timer = 0
         # Play Music
@@ -91,12 +115,17 @@ class Game:
                 print('Thank you for playing!')
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
-                    planet = Planet(self)
+                    self.added_planets += 1
+                    self.spawn_planets(PLANETS + self.added_planets)
                     # self.player.jump()
+                if event.key == pg.K_m:
+                    Moon(self)
                 if event.key == pg.K_ESCAPE:
                     self.running = False
                     self.playing = False
                     print('Thank you for playing!')
+                if event.key == pg.K_n:
+                    self.playing = False
             # if event.type == pg.KEYUP:
             #     if event.key == pg.K_SPACE:
             #         self.player.jump_cut ()
@@ -153,6 +182,18 @@ class Game:
         text_rect = text_surface.get_rect()
         text_rect.midtop = (x, y)
         self.screen.blit(text_surface, text_rect)
+
+    def spawn_planets(self, n):
+        while len(self.planets) < n:
+            self.spawn_planet()
+
+    def spawn_planet(self):
+        new_planet = Planet(self)
+        for planet in self.planets:
+            if planet is not new_planet:
+                if new_planet.pos.distance_to(planet.pos) < (new_planet.radius + planet.radius + 5):
+                    new_planet.kill()
+
 
 
 if __name__ == '__main__':
