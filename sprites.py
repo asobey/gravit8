@@ -68,7 +68,7 @@ class Planet(pg.sprite.Sprite):
 
     def spawn_moons(self):
         last_orbital_radius = self.radius
-        for i in range(randrange(MAX_MOONS) + 1):
+        for _ in range(randrange(MAX_MOONS + 1)):
             orbital_radius = last_orbital_radius + randrange(10, 15)
             new_moon = Moon(self, orbital_radius)
             self.moons.add(new_moon)
