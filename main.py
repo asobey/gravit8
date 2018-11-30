@@ -4,7 +4,7 @@
 # --- ATTRIBUTIONS / CREDITS ---
 # Music By: t4ngr4m and/or avgvsta
 # Sprites By: Kenney.nl
-# Sounds Using: bfxr.com
+# Sounds Using: bfxr.net
 # Planets By: Viktor.Hahn@web.de
 
 # --- IMPORTS ---
@@ -71,6 +71,7 @@ class Game:
 
         # Load Sounds / Music
         self.crash_sound = pg.mixer.Sound(path.join(self.snd_dir, CRASH_SND_FILE))
+        self.moon_crash_sound = pg.mixer.Sound(path.join(self.snd_dir, MOON_CRASH_SND_FILE))
         self.jump_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SND_FILE))
 
 
@@ -192,6 +193,8 @@ class Game:
         for planet in self.planets:
             if planet is not new_planet:
                 if new_planet.pos.distance_to(planet.pos) < (new_planet.radius + planet.radius + 5):
+                    for moon in new_planet.moons:
+                        moon.kill()
                     new_planet.kill()
 
 

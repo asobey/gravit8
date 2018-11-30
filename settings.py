@@ -2,8 +2,8 @@
 
 # DISPLAY
 TITLE = "GRAVIT8"
-WIDTH = 1800
-HEIGHT = 900
+WIDTH = 1000
+HEIGHT = 700
 FPS = 60
 FONT_NAME = 'arial'
 
@@ -12,6 +12,7 @@ HIGH_SCORE_FILE = 'highscore.txt'
 PLAYER_FILE = 'p1_jump.png'
 JUMP_SND_FILE = 'Jump3.wav'
 CRASH_SND_FILE = 'crash2.wav'
+MOON_CRASH_SND_FILE = 'moon_crash.wav'
 
 # PLAYER PROPERTIES
 PLAYER_ACC = 0.5

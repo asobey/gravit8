@@ -43,6 +43,7 @@ class Player(pg.sprite.Sprite):
 
 
 class Planet(pg.sprite.Sprite):
+
     def __init__(self, game):
         self._layer = PLANET_LAYER
         self.groups = game.all_sprites, game.planets
@@ -59,34 +60,33 @@ class Planet(pg.sprite.Sprite):
         self.radius = self.rect.width / 2
         self.mass = self.radius ** 2
         self.pos = vec(self.rect.x, self.rect.y)
+        self.pos_last = self.pos
         self.vel = vec(randrange(-PLANET_START_VEL_LIMIT, PLANET_START_VEL_LIMIT)/50,\
                        randrange(-PLANET_START_VEL_LIMIT, PLANET_START_VEL_LIMIT)/50)
         self.acc = vec(0, 0)
+        self.collision_flag = False
         self.collision_post_count = 0
         self.moons = pg.sprite.Group()
         self.spawn_moons()
 
     def spawn_moons(self):
-        last_orbital_radius = self.radius
+        last_orbital_radius = self.radius + 5
+        self.moons = pg.sprite.Group()  # create moon group at the planet level
         for _ in range(randrange(MAX_MOONS + 1)):
             orbital_radius = last_orbital_radius + randrange(10, 15)
-            new_moon = Moon(self, orbital_radius)
-            self.moons.add(new_moon)
+            new_moon = Moon(self, orbital_radius)  # todo: combine two lines
+            self.moons.add(new_moon)  # with this line
             last_orbital_radius = orbital_radius
+        self.game.all_sprites.add(self.moons)
 
     def update(self):
+        self.pos_last = self.pos
         self.pos += self.vel + 0.5 * self.acc
         self.rect.center = self.pos
-        if self.collision_post_count is not 0:
-            if self.collision_post_count is COLLISION_POST_COUNT_MAX:
-                self.collision_post_count = 0
-            else:
-                self.collision_post_count += 1
         self.wall_check()
-        self.planet_collision()
-        for moon in self.moons:
-            moon.update()
-        #     moon.update_fix_lost_planet(self.pos)
+        if not self.collision_flag:  # if collision already handled by previous planet, then ignore
+            self.planet_collision_check()
+        self.collision_flag = False
 
     def wall_check(self):
         if self.rect.right > WIDTH or self.rect.left < 0:
@@ -94,16 +94,16 @@ class Planet(pg.sprite.Sprite):
         if self.rect.bottom > HEIGHT or self.rect.top < 0:
             self.vel.y *= -1
 
-    def planet_collision(self):
+    def planet_collision_check(self):
         for planet in self.game.planets:
-            if planet is not self and (self.collision_post_count is 0 or planet.collision_post_count is 0):
+            if planet is not self:  # and (self.collision_post_count is 0 or planet.collision_post_count is 0):
                 if self.pos.distance_to(planet.pos) < (self.radius + planet.radius):
                     self.game.crash_sound.play()
                     pos_explosion = self.collision_point(self.pos, planet.pos, self.radius, planet.radius)
                     Explosion(self.game, pos_explosion, 'lg')
+                    self.pos, planet.pos = self.pos_last, planet.pos_last
                     self.vel, planet.vel = self.collision_new_vel(self.vel, planet.vel, self.mass, planet.mass)
-                    self.collision_post_count += 1
-                    planet.collision_post_count += 1
+                    planet.collision_flag = True  # flag to skip 2nd planet collision check
 
     @staticmethod
     def collision_point(pos_a, pos_b, radius_a, radius_b):
@@ -125,7 +125,7 @@ class Moon(pg.sprite.Sprite):
         self._layer = MOON_LAYER
         self.planet = planet
         self.game = planet.game
-        self.groups = self.game.moons, self.game.all_sprites
+        self.groups = self.game.all_sprites, self.game.moons
         pg.sprite.Sprite.__init__(self, self.groups)
         self.image = choice(self.game.moon_images)
         self.image.set_colorkey(BLACK)
@@ -157,7 +157,7 @@ class Moon(pg.sprite.Sprite):
     def planet_collision(self):
         for planet in self.game.planets:
             if self.pos.distance_to(planet.pos) < (self.radius + planet.radius):
-                self.game.crash_sound.play()
+                self.game.moon_crash_sound.play()
                 pos_explosion = self.collision_point(self.pos, planet.pos, self.radius, planet.radius)
                 Explosion(self.game, pos_explosion, 'sm')
                 #self.vel, planet.vel = self.collision_new_vel(self.vel, planet.vel, self.mass, planet.mass)
