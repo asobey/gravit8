@@ -2,7 +2,8 @@
 #GRAVIT8 - Physics game
 
 # --- ATTRIBUTIONS / CREDITS ---
-# Music By: his work is licensed under the Creative Commons Namensnennung - Weitergabe unter gleichen Bedingungen 3.0 Unported License Author: sofamusik
+# Music By: his work is licensed under the Creative Commons Namensnennung - Weitergabe unter gleichen Bedingungen 3.0
+#   Unported License Author: sofamusik
 # Sprites By: Kenney.nl
 # Sounds Using: bfxr.net
 # Planets By: Viktor.Hahn@web.de
@@ -52,10 +53,11 @@ class Game:
         for i in range(1, 4):
             self.moon_images.append(pg.image.load(path.join(self.img_dir, 'moons', 'Moon{}.png'.format(i))).convert())
 
-        self.fuel_image = pg.image.load(path.join(self.img_dir, 'pickups', FUEL_FILE))
-        self.arrow_image = pg.image.load(path.join(self.img_dir, ARROW_FILE))
+        self.fuel_image = pg.image.load(path.join(self.img_dir, 'pickups', FUEL_FILE)).convert()
+        self.arrow_image = pg.image.load(path.join(self.img_dir, ARROW_FILE)).convert()
         self.background = pg.image.load(path.join(self.img_dir, BACKGROUND_FILE)).convert()
         self.background_rect = self.background.get_rect()
+        print(f'BACKGROUND WIDTH, HEIGHT: {self.background_rect.width}, {self.background_rect.height}')
         self.loadscreen = pg.image.load(path.join(self.img_dir, START_SCREEN_FILE)).convert()
         self.loadscreen_rect = self.loadscreen.get_rect()
 
@@ -178,9 +180,9 @@ class Game:
         text_rect.midtop = (x, y)
         self.screen.blit(text_surface, text_rect)
 
-    def draw_arrow_msg(self):
-        if self.arrow_msg is not None:
-            self.draw_text(self.player.distance_from_center, 100, WHITE, WIDTH / 2, HEIGHT / 2 - 50)
+    # def draw_arrow_msg(self):
+    #     if self.arrow_msg is not None:
+    #         self.draw_text(self.player.distance_from_center, 100, WHITE, WIDTH / 2, HEIGHT / 2 - 50)
 
     def draw_corner_msg(self):
         if self.corner_msg is not None:
@@ -202,7 +204,6 @@ class Game:
         fill = (percent / 150) * BAR_LENGTH
         outline_rect = pg.Rect(x, y, BAR_LENGTH, BAR_HEIGHT)
         fill_rect = pg.Rect(x, y, fill, BAR_HEIGHT)
-        print(percent)
         if percent > 100:
             pg.draw.rect(surface, GREEN, fill_rect)
         else:
@@ -210,7 +211,7 @@ class Game:
         pg.draw.rect(surface, WHITE, outline_rect, 2)
         outline_rect2 = pg.Rect(x, y, 1/1.5 * BAR_LENGTH, BAR_HEIGHT)
         pg.draw.rect(surface, WHITE, outline_rect2, 2)
-        self.draw_text('FUEL', 25, GREEN, 20, 25, 'playbill')
+        self.draw_text('FUEL', 25, YELLOW, 20, 25, 'playbill')
         self.draw_text('TO JUMP', 25, GREEN, 235, 25, 'playbill')
 
     def draw_lives(surf, x, y, lives, img):

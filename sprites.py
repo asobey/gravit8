@@ -330,41 +330,41 @@ class Fuel(pg.sprite.Sprite):
         self.image, self.rect = rotate_image_about_center(self.image_original, self.rect, self.image_angle)
 
 
-class Arrow(pg.sprite.Sprite):
-    def __init__(self, game, player):
-        self.game = game
-        self.player = player
-        self.up = vec(0, 1)
-        self.center = vec(WIDTH / 2, HEIGHT / 2)
-        self._layer = ARROW_LAYER # good for fuel too
-        self.groups = self.game.all_sprites, self.game.arrows
-        pg.sprite.Sprite.__init__(self, self.groups)
-        self.image = self.game.arrow_image
-        self.image.set_colorkey(BLACK)
-        self.rect = self.image.get_rect()
-        scale = .5
-        self.image = pg.transform.scale(self.image, (int(self.rect.width * scale), int(self.rect.height * scale)))
-        self.image_original = self.image
-        self.rect = self.image.get_rect()
-        self.circle_radius = 400
-
-        self.angle = self.up.angle_to(self.player.pos - self.center) + 90
-        self.image_angle = -(self.angle + 90) % 360
-
-        self.pos_from_center = vec()
-        self.pos_from_center.from_polar((self.circle_radius, self.angle))
-        self.pos = vec(self.center + self.pos_from_center)
-        self.rect.center = self.pos
-
-    def update(self):
-        self.rect.center = self.pos
-        self.angle = self.up.angle_to(self.game.player.pos - self.center) + 90
-        self.image_angle = -(self.angle + 90) % 360
-        self.pos_from_center.from_polar((self.circle_radius, self.angle))
-        self.pos = vec(self.center + self.pos_from_center)
-        self.rect.center = self.pos
-        self.image, self.rect = rotate_image_about_center(self.image_original, self.rect, self.image_angle)
-
+# class Arrow(pg.sprite.Sprite):
+#     def __init__(self, game, player):
+#         self.game = game
+#         self.player = player
+#         self.up = vec(0, 1)
+#         self.center = vec(WIDTH / 2, HEIGHT / 2)
+#         self._layer = ARROW_LAYER # good for fuel too
+#         self.groups = self.game.all_sprites, self.game.arrows
+#         pg.sprite.Sprite.__init__(self, self.groups)
+#         self.image = self.game.arrow_image
+#         self.image.set_colorkey(BLACK)
+#         self.rect = self.image.get_rect()
+#         scale = .5
+#         self.image = pg.transform.scale(self.image, (int(self.rect.width * scale), int(self.rect.height * scale)))
+#         self.image_original = self.image
+#         self.rect = self.image.get_rect()
+#         self.circle_radius = 400
+#
+#         self.angle = self.up.angle_to(self.player.pos - self.center) + 90
+#         self.image_angle = -(self.angle + 90) % 360
+#
+#         self.pos_from_center = vec()
+#         self.pos_from_center.from_polar((self.circle_radius, self.angle))
+#         self.pos = vec(self.center + self.pos_from_center)
+#         self.rect.center = self.pos
+#
+#     def update(self):
+#         self.rect.center = self.pos
+#         self.angle = self.up.angle_to(self.game.player.pos - self.center) + 90
+#         self.image_angle = -(self.angle + 90) % 360
+#         self.pos_from_center.from_polar((self.circle_radius, self.angle))
+#         self.pos = vec(self.center + self.pos_from_center)
+#         self.rect.center = self.pos
+#         self.image, self.rect = rotate_image_about_center(self.image_original, self.rect, self.image_angle)
+#
 
 class Explosion(pg.sprite.Sprite):
     def __init__(self, game, center, size):
