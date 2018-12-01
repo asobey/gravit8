@@ -6,18 +6,20 @@
 # Sprites By: Kenney.nl
 # Sounds Using: bfxr.net
 # Planets By: Viktor.Hahn@web.de
+# Background By: Bart K. https://opengameart.org/content/red-planet
 
 # --- IMPORTS ---
 import pygame as pg
 from settings import *
 from sprites import *
-from os import path
+from os import path, environ
 from random import choice, randrange
 import time
 
 
 class Game:
     def __init__(self):  # initialize game window, ect
+        environ['SDL_VIDEO_CENTERED'] = '1'
         pg.init()  # initialize pygame
         pg.mixer.init()  # initialize sound
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))  # creates the display
@@ -49,8 +51,13 @@ class Game:
         self.moon_images = []
         for i in range(1, 4):
             self.moon_images.append(pg.image.load(path.join(self.img_dir, 'moons', 'Moon{}.png'.format(i))).convert())
-        self.background = pg.image.load(path.join(self.img_dir, "starsBackground.png")).convert()
+
+        self.fuel_image = pg.image.load(path.join(self.img_dir, 'pickups', FUEL_FILE))
+        self.arrow_image = pg.image.load(path.join(self.img_dir, ARROW_FILE))
+        self.background = pg.image.load(path.join(self.img_dir, BACKGROUND_FILE)).convert()
         self.background_rect = self.background.get_rect()
+        self.loadscreen = pg.image.load(path.join(self.img_dir, START_SCREEN_FILE)).convert()
+        self.loadscreen_rect = self.loadscreen.get_rect()
 
         # BUILDING EXPLOSION ANIMATIONS
         self.explosion_animation = {}
@@ -74,6 +81,8 @@ class Game:
         self.crash_sound.set_volume(.4)
         self.moon_crash_sound = pg.mixer.Sound(path.join(self.snd_dir, MOON_CRASH_SND_FILE))
         self.moon_crash_sound.set_volume(.03)
+        self.player_crash_sound = pg.mixer.Sound(path.join(self.snd_dir, PLAYER_CRASH_SND_FILE))
+        self.player_crash_sound.set_volume(1)
         self.launch_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SND_FILE))
         self.launch_sound.set_volume(1)
 
@@ -86,10 +95,19 @@ class Game:
         self.moons = pg.sprite.Group()
         self.mobs = pg.sprite.Group()
         self.stars = pg.sprite.Group()
+        self.pickups = pg.sprite.Group()
+        self.arrows = pg.sprite.Group()
 
         self.first_planet = Planet(self)  # Add 1st Planet
-        self.player = Player(self, self.first_planet) # Add Player on First Planet
+        self.player = Player(self, self.first_planet)  # Add Player on First Planet
         self.added_planets = 0
+
+        # Messages
+        self.corner_msg = 'Traverse & Score!'
+        self.corner_msg_flag = False
+        self.corner_msg_start_time = pg.time.get_ticks()
+
+        self.arrow_msg = ''
 
         # TODO: self.something_timer = 0
         # Play Music
@@ -97,6 +115,7 @@ class Game:
 
         # Start Game Loop
         self.run()
+        print("GOT TO END OF NEW()")
 
     def run(self):
         """ Game Loop """
@@ -125,27 +144,100 @@ class Game:
                     # self.player.jump()
                 if event.key == pg.K_m:
                     Moon(self)
+                if event.key == pg.K_l:
+                    self.playing = False
                 if event.key == pg.K_ESCAPE:
                     self.running = False
                     self.playing = False
                     print('Thank you for playing!')
                 if event.key == pg.K_n:
                     self.playing = False
+                    print('==============')
+                    print('---NEW GAME---')
+                    print('==============')
             # if event.type == pg.KEYUP:
             #     if event.key == pg.K_SPACE:
             #         self.player.jump_cut ()
 
+    # --- DRAW RENDER ---
     def draw(self):  # game loop - draw / render
         self.screen.fill(BG_COLOR)
         self.screen.blit(self.background, self.background_rect)
         self.all_sprites.draw(self.screen)  # All sprites group takes care of layers
-        self.draw_text(self.score, 22, WHITE, WIDTH / 2, 15)
+        self.draw_corner_msg()
+        self.draw_text(f'Highscore: {self.highscore}', 20, WHITE, WIDTH / 2, 10)
+        # self.draw_arrow_msg()
+        self.draw_text(self.score, 25, WHITE, WIDTH / 2, 30)
+        self.draw_fuel_bar(self.screen, 5, 5, self.player.fuel_level)
         pg.display.flip()  # after everything is drawn, flip display
+
+    def draw_text(self, text, size, color, x, y, font_name=FONT_NAME):
+        font = pg.font.Font(pg.font.match_font(font_name), size)
+        text_surface = font.render(str(text), True, color)
+        text_rect = text_surface.get_rect()
+        text_rect.midtop = (x, y)
+        self.screen.blit(text_surface, text_rect)
+
+    def draw_arrow_msg(self):
+        if self.arrow_msg is not None:
+            self.draw_text(self.player.distance_from_center, 100, WHITE, WIDTH / 2, HEIGHT / 2 - 50)
+
+    def draw_corner_msg(self):
+        if self.corner_msg is not None:
+            if self.corner_msg_flag is False:
+                self.corner_msg_start_time = pg.time.get_ticks()
+                self.corner_msg_flag = True
+            else:
+                if pg.time.get_ticks() - self.corner_msg_start_time < 2000:
+                    self.draw_text(self.corner_msg, 35, RED, WIDTH - 400, 15)
+                else:
+                    self.corner_msg = None
+                    self.corner_msg_flag = False
+
+    def draw_fuel_bar(self, surface, x, y, percent):
+        if percent < 0:
+            percent = 0
+        BAR_LENGTH = 300  # Pixels
+        BAR_HEIGHT = 20
+        fill = (percent / 150) * BAR_LENGTH
+        outline_rect = pg.Rect(x, y, BAR_LENGTH, BAR_HEIGHT)
+        fill_rect = pg.Rect(x, y, fill, BAR_HEIGHT)
+        print(percent)
+        if percent > 100:
+            pg.draw.rect(surface, GREEN, fill_rect)
+        else:
+            pg.draw.rect(surface, YELLOW, fill_rect)
+        pg.draw.rect(surface, WHITE, outline_rect, 2)
+        outline_rect2 = pg.Rect(x, y, 1/1.5 * BAR_LENGTH, BAR_HEIGHT)
+        pg.draw.rect(surface, WHITE, outline_rect2, 2)
+        self.draw_text('FUEL', 25, GREEN, 20, 25, 'playbill')
+        self.draw_text('TO JUMP', 25, GREEN, 235, 25, 'playbill')
+
+    def draw_lives(surf, x, y, lives, img):
+        for i in range(lives):
+            img_rect = img.get_rect()
+            img_rect.x = x + 30 * i
+            img_rect.y = y
+            surf.blit(img, img_rect)
+
+    def spawn_planets(self, n):
+        while len(self.planets) < n:
+            self.spawn_planet()
+
+    def spawn_planet(self):
+        new_planet = Planet(self)
+        for planet in self.planets:
+            if planet is not new_planet:
+                if new_planet.pos.distance_to(planet.pos) < (new_planet.radius + planet.radius + 5):
+                    for moon in new_planet.moons:
+                        moon.kill()
+                    new_planet.kill()
+
 
     def show_start_screen(self):
         pg.mixer.music.load(path.join(self.snd_dir, LEVEL_1_MUSIC))
         pg.mixer.music.play(loops=-1)
-        self.screen.fill(BG_COLOR)
+        self.screen.blit(self.loadscreen, self.loadscreen_rect)
         self.draw_text(TITLE, 48, WHITE, WIDTH / 2, HEIGHT / 4)
         self.draw_text("Arrows (or W-A-S-D) to move & Spacebar to Jump", 22, BLACK, WIDTH / 2, HEIGHT / 2)
         self.draw_text("Press any key to play...", 22, WHITE, WIDTH / 2, HEIGHT * 3/4)
@@ -155,8 +247,10 @@ class Game:
         pg.mixer.music.fadeout(500)
 
     def show_game_over_screen(self):
+        pg.mixer.music.load(path.join(self.snd_dir, LEVEL_1_MUSIC))
+        pg.mixer.music.play(loops=-1)
         if self.running:
-            self.screen.fill(BG_COLOR)
+            self.screen.blit(self.loadscreen, self.loadscreen_rect)
             self.draw_text("GAME OVER", 48, WHITE, WIDTH / 2, HEIGHT / 4)
             self.draw_text("Score: " + str(self.score), 22, BLACK, WIDTH / 2, HEIGHT / 2)
             self.draw_text("Press any key to play again...", 22, WHITE, WIDTH / 2, HEIGHT * 3/4)
@@ -180,26 +274,6 @@ class Game:
                     self.running = False
                 if event.type == pg.KEYUP:
                     waiting = False
-
-    def draw_text(self, text, size, color, x, y):
-        font = pg.font.Font(self.font_name, size)
-        text_surface = font.render(str(text), True, color)
-        text_rect = text_surface.get_rect()
-        text_rect.midtop = (x, y)
-        self.screen.blit(text_surface, text_rect)
-
-    def spawn_planets(self, n):
-        while len(self.planets) < n:
-            self.spawn_planet()
-
-    def spawn_planet(self):
-        new_planet = Planet(self)
-        for planet in self.planets:
-            if planet is not new_planet:
-                if new_planet.pos.distance_to(planet.pos) < (new_planet.radius + planet.radius + 5):
-                    for moon in new_planet.moons:
-                        moon.kill()
-                    new_planet.kill()
 
 
 
