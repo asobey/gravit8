@@ -2,7 +2,7 @@
 #GRAVIT8 - Physics game
 
 # --- ATTRIBUTIONS / CREDITS ---
-# Music By: t4ngr4m and/or avgvsta
+# Music By: his work is licensed under the Creative Commons Namensnennung - Weitergabe unter gleichen Bedingungen 3.0 Unported License Author: sofamusik
 # Sprites By: Kenney.nl
 # Sounds Using: bfxr.net
 # Planets By: Viktor.Hahn@web.de
@@ -63,7 +63,7 @@ class Game:
             img.set_colorkey(BLACK)
             img_lg = pg.transform.scale(img, (50, 50))
             self.explosion_animation['lg'].append(img_lg)
-            img_sm = pg.transform.scale(img, (20, 20))
+            img_sm = pg.transform.scale(img, (10, 10))
             self.explosion_animation['sm'].append(img_sm)
             filename = 'sonicExplosion0{}.png'.format(i)
             img = pg.image.load(path.join(self.img_dir, 'explosions', filename)).convert()
@@ -71,9 +71,11 @@ class Game:
 
         # Load Sounds / Music
         self.crash_sound = pg.mixer.Sound(path.join(self.snd_dir, CRASH_SND_FILE))
+        self.crash_sound.set_volume(.4)
         self.moon_crash_sound = pg.mixer.Sound(path.join(self.snd_dir, MOON_CRASH_SND_FILE))
-        self.jump_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SND_FILE))
-
+        self.moon_crash_sound.set_volume(.03)
+        self.launch_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SND_FILE))
+        self.launch_sound.set_volume(1)
 
     def new(self):
         """New Game / Reset Game"""
@@ -84,13 +86,15 @@ class Game:
         self.moons = pg.sprite.Group()
         self.mobs = pg.sprite.Group()
         self.stars = pg.sprite.Group()
-        self.player = Player(self)
-        self.all_sprites.add(self.player)
+
+        self.first_planet = Planet(self)  # Add 1st Planet
+        self.player = Player(self, self.first_planet) # Add Player on First Planet
         self.added_planets = 0
 
         # TODO: self.something_timer = 0
         # Play Music
-        pg.mixer.music.load(path.join(self.snd_dir, '01 - Opening.ogg'))
+        pg.mixer.music.load(path.join(self.snd_dir, START_MUSIC))
+
         # Start Game Loop
         self.run()
 
@@ -139,7 +143,7 @@ class Game:
         pg.display.flip()  # after everything is drawn, flip display
 
     def show_start_screen(self):
-        pg.mixer.music.load(path.join(self.snd_dir, '20 - Game Over.ogg'))
+        pg.mixer.music.load(path.join(self.snd_dir, LEVEL_1_MUSIC))
         pg.mixer.music.play(loops=-1)
         self.screen.fill(BG_COLOR)
         self.draw_text(TITLE, 48, WHITE, WIDTH / 2, HEIGHT / 4)
