@@ -2,14 +2,17 @@
 # Sprite Classes for GRAVIT8
 
 # --- IMPORTS ---
+from typing import Type
 import pygame as pg
-vec = pg.math.Vector2
-from math import cos, sin, atan, radians
+from math import cos, sin, radians
 from settings import *
 from random import choice, randrange
+from pygame.math import Vector2
+vec: Type[Vector2] = pg.math.Vector2
 
 
 # --- CLASSES ---
+# noinspection PyArgumentList
 class Player(pg.sprite.Sprite):
     def __init__(self, game, on_planet):
         self._layer = PLAYER_LAYER
@@ -24,16 +27,25 @@ class Player(pg.sprite.Sprite):
         self.image_original = self.image  # need so that you do not ruin image over time
         self.image_original.set_colorkey(BLACK)
         self.rect = self.image.get_rect()
+        # Off Map Image
+        self.off_map_scale = 4
+        self.off_map_image = pg.transform.scale(self.image, (int(self.rect.width * self.off_map_scale),
+                                                             int(self.rect.height * self.off_map_scale)))
+        self.off_map_image.set_colorkey(BLACK)
+        self.off_map_image_original = self.off_map_image
+        self.player_off_map = False
+        # PLAYER PROPERTIES
+        self.on_planet = on_planet
+        self.last_planet = on_planet
         self.radius = 8
         # pg.draw.circle(self.image, RED, self.rect.center, self.radius, 2)
         self.center = vec(WIDTH / 2, HEIGHT / 2)
         self.up = vec(0, 1)
         # Start Position / Speed
         self.pos = vec()
-        self.on_planet = on_planet
-        self.last_planet = on_planet
         self.angle = -90  # puts player at top of planet
         self.image_angle = (self.angle + 90) % 360  # player image standing straight up
+
         self.pos_from_planet = vec()
         self.pos_from_planet.from_polar((self.on_planet.radius, self.angle))
         self.pos = vec(self.on_planet.pos + self.pos_from_planet)
@@ -42,15 +54,14 @@ class Player(pg.sprite.Sprite):
         # Angular properties used on the planet
         self.ang_vel = vec(0, 0)
         self.ang_acc = vec(0, 0)
-
+        # PLAYER STATES
         self.distance_from_center = int(abs(self.center.distance_to(self.pos)))
-
-
-        self.fuel_level = 1
+        self.fuel_level = START_FUEL
 
     def update(self):
-        self.moon_collision_check()
-        self.pickups_collision_check()
+        if not self.player_off_map:
+            self.moon_collision_check()
+            self.pickups_collision_check()
         if self.on_planet is not None:
             keys = pg.key.get_pressed()
             if keys[pg.K_w]:  # LAUNCH OFF PLANET
@@ -59,18 +70,21 @@ class Player(pg.sprite.Sprite):
                 self.mobility_on_planet()
         else:
             self.mobility_freeflier()
-        # self.arrow_check()
+            self.off_map_player()
 
-    # def arrow_check(self):
-    #     self.distance_from_center = int(abs(self.center.distance_to(self.pos)))
-    #     if self.distance_from_center > (HEIGHT ** 2 + WIDTH ** 2) ** 0.5 / 2:
-    #         if len(self.game.arrows) == 0:
-    #             Arrow(self.game, self)
-    #             self.game.arrow_msg = self.distance_from_center
-    #     else:
-    #         Arrow.kill(self.game.arrows)
-    #         self.game.arrow_msg = None
+    def off_map_player(self):
+        if not (0 < self.pos.x < WIDTH and 0 < self.pos.y < HEIGHT):
+            self.player_off_map = True
+            self.distance_from_center = int(abs(self.center.distance_to(self.pos)))
+            self.rect = self.off_map_image.get_rect()
+            self.image, self.rect = rotate_image_about_center(self.off_map_image_original, self.rect, self.image_angle)
+            self.rect.center = self.center
+            self.game.arrow_msg = True
 
+        else:
+            self.player_off_map = False
+            self.game.arrow_msg = False
+            self.rect.center = self.pos
 
     def mobility_on_planet(self):
         self.angular_mobility()
@@ -92,11 +106,11 @@ class Player(pg.sprite.Sprite):
     def angular_mobility(self):
         self.ang_acc.x = 0  # must clear acceleration every frame
         keys = pg.key.get_pressed()
-        if keys[pg.K_LEFT] or keys[pg.K_a]:
-            self.ang_acc.x = -PLAYER_ACC
-        if keys[pg.K_RIGHT] or keys[pg.K_d]:
-            self.ang_acc.x = PLAYER_ACC
-        # APPLY FRICTION
+        if keys[pg.K_a]:
+            self.ang_acc.x = -PLAYER_ANGULAR_ACC
+        if keys[pg.K_d]:
+            self.ang_acc.x = PLAYER_ANGULAR_ACC
+        # ACC / VEL / POS EQUATIONS
         self.ang_acc.x += self.ang_vel.x * PLAYER_FRICTION  # applies friction to the player
         self.ang_vel += self.ang_acc
         if abs(self.ang_vel.x) < 0.1:  # otherwise vel.x never returns to '0', just gets infinitesimally small
@@ -108,10 +122,41 @@ class Player(pg.sprite.Sprite):
     def mobility_freeflier(self):
         self.angular_mobility()
         self.apply_gravity_field()
+        self.jetpack_mobility()
+        # ACC / VEL / POS EQUATIONS
         self.vel += self.acc
         self.pos += self.vel + 0.5 * self.acc
         self.rect.center = self.pos
         self.landing_and_crash_check()
+
+    def jetpack_mobility(self):
+        # acc set to 0 is apply gravity fields, so this is after that.
+        if self.fuel_level > 0:
+            keys = pg.key.get_pressed()
+            if keys[pg.K_LEFT] or keys[pg.K_KP4]:
+                self.acc.y += JETPACK_ACC * sin(radians(self.image_angle))
+                self.acc.x += JETPACK_ACC * -cos(radians(self.image_angle))
+                self.game.jetpack_sound.play()
+                Explosion(self.game, self.pos, 'tiny', speed=1)
+                self.fuel_level -= FUEL_CONSUMPTION_RATE
+            elif keys[pg.K_RIGHT] or keys[pg.K_KP6]:
+                self.acc.y += JETPACK_ACC * -sin(radians(self.image_angle))
+                self.acc.x += JETPACK_ACC * cos(radians(self.image_angle))
+                self.game.jetpack_sound.play()
+                Explosion(self.game, self.pos, 'tiny', speed=1)
+                self.fuel_level -= FUEL_CONSUMPTION_RATE
+            elif keys[pg.K_UP] or keys[pg.K_KP8]:
+                self.acc.x += JETPACK_ACC * -sin(radians(self.image_angle))
+                self.acc.y += JETPACK_ACC * -cos(radians(self.image_angle))
+                self.game.jetpack_sound.play()
+                self.fuel_level -= FUEL_CONSUMPTION_RATE
+                Explosion(self.game, self.pos, 'tiny', speed=1)
+            elif keys[pg.K_DOWN] or keys[pg.K_KP5] or keys[pg.K_KP2]:
+                self.acc.x += JETPACK_ACC * sin(radians(self.image_angle))
+                self.acc.y += JETPACK_ACC * cos(radians(self.image_angle))
+                self.game.jetpack_sound.play()
+                Explosion(self.game, self.pos, 'tiny', speed=1)
+                self.fuel_level -= FUEL_CONSUMPTION_RATE
 
     def landing_and_crash_check(self):
         for planet in self.game.planets:
@@ -122,7 +167,8 @@ class Player(pg.sprite.Sprite):
                     head_location = self.rect.midleft
                 elif 135 < self.image_angle < 225:
                     head_location = self.rect.midbottom
-                else: head_location = self.rect.midright
+                else:
+                    head_location = self.rect.midright
                 if not planet.pos.distance_to(head_location) <= planet.radius:
                     self.on_planet = planet
                     self.place_on_planet_surface(self.on_planet)
@@ -131,9 +177,9 @@ class Player(pg.sprite.Sprite):
                     else:
                         self.game.score += 500
                         self.game.corner_msg = 'Nice Landing: +500'
-                else:  # planet.pos.distance_to(self.rect.midtop) <= planet.radius: #or \
-                        # planet.pos.distance_to(self.rect.topright) <= planet.radius or \
-                        # planet.pos.distance_to(self.rect.topleft) <= planet.radius:
+                else:
+                    self.game.player_crash_sound.play()
+                    Explosion(self.game, self.rect.center, 'player')
                     self.game.score -= 500
                     self.game.corner_msg = 'Crash Landing: -500'
                     self.on_planet = planet  # todo: remove later, here to keep from dozens of crash landings
@@ -148,7 +194,7 @@ class Player(pg.sprite.Sprite):
         """Launch from planet"""
         self.game.launch_sound.play()
         planet_to_player_angle = self.up.angle_to(self.pos - self.on_planet.pos)
-        self.vel.x = LAUNCH_FORCE * -sin(radians(planet_to_player_angle)) + self.on_planet.vel.x  # Launch Power / Velocity
+        self.vel.x = LAUNCH_FORCE * -sin(radians(planet_to_player_angle)) + self.on_planet.vel.x  # Launch Velocity
         self.vel.y = LAUNCH_FORCE * cos(radians(planet_to_player_angle)) + self.on_planet.vel.y
         self.last_planet = self.on_planet
         self.on_planet = None
@@ -156,7 +202,8 @@ class Player(pg.sprite.Sprite):
     def apply_gravity_field(self):
         self.acc = vec(0, 0)
         for planet in self.game.planets:
-            if self.pos.distance_to(planet.pos) > planet.radius + 1: # No gravity inside the radius of the planet. todo: might not need at end
+            if self.pos.distance_to(planet.pos) > planet.radius + 1:  # No gravity inside the radius of the planet.
+                # todo: might not need at end
                 try:
                     acc_magnitude = GRAVITATIONAL_CONSTANT * planet.mass / (self.pos.distance_to(planet.pos) ** 2)
                 except ZeroDivisionError:
@@ -182,6 +229,7 @@ class Player(pg.sprite.Sprite):
                 self.game.player.fuel_level = 150
 
 
+# noinspection PyArgumentList
 class Planet(pg.sprite.Sprite):
     def __init__(self, game):
         self._layer = PLANET_LAYER
@@ -216,8 +264,8 @@ class Planet(pg.sprite.Sprite):
         self.spawn_fuel()
 
     def spawn_moons(self):
-        last_orbital_radius = self.radius + 12
-        self.moons = pg.sprite.Group()  # create moon group at the planet level
+        last_orbital_radius = self.radius + 14
+        self.moons = pg.sprite.Group()  # create moon group at the planet level so moons can be killed by planet
         for _ in range(randrange(MAX_MOONS + 1)):
             orbital_radius = last_orbital_radius + randrange(10, 15)
             new_moon = Moon(self, orbital_radius)  # todo: combine two lines
@@ -225,10 +273,11 @@ class Planet(pg.sprite.Sprite):
             last_orbital_radius = orbital_radius
 
     def spawn_fuel(self):
+        self.fuels = pg.sprite.Group()  # create fuels group at the planet level so fuels can be killed by planet
         for _ in range(randrange(MAX_FUEL + 1)):
             new_fuel = Fuel(self)
+            self.fuels.add(new_fuel)
             self.game.pickups.add(new_fuel)
-
 
     def update(self):
         self.pos_last = self.pos
@@ -257,6 +306,7 @@ class Planet(pg.sprite.Sprite):
                     planet.collision_flag = True  # flag to skip 2nd planet collision check
 
 
+# noinspection PyArgumentList
 class Moon(pg.sprite.Sprite):
     def __init__(self, planet, orbit_radius):
         self._layer = MOON_LAYER
@@ -292,15 +342,15 @@ class Moon(pg.sprite.Sprite):
         for planet in self.game.planets:
             if self.pos.distance_to(planet.pos) < (self.radius + planet.radius):
                 self.game.moon_crash_sound.play()
-                # pos_explosion = collision_point(self.pos, planet.pos, self.radius, planet.radius)
                 Explosion(self.game, self.pos, 'sm')
                 # ToDo: Change to have new planet steel moon
 
 
+# noinspection PyArgumentList
 class Fuel(pg.sprite.Sprite):
     def __init__(self, planet):
         self.up = vec(0, 1)
-        self._layer = MOON_LAYER # good for fuel too
+        self._layer = MOON_LAYER  # good for fuel too
         self.planet = planet
         self.game = planet.game
         self.groups = self.game.all_sprites, self.game.pickups
@@ -330,44 +380,60 @@ class Fuel(pg.sprite.Sprite):
         self.image, self.rect = rotate_image_about_center(self.image_original, self.rect, self.image_angle)
 
 
-# class Arrow(pg.sprite.Sprite):
-#     def __init__(self, game, player):
-#         self.game = game
-#         self.player = player
-#         self.up = vec(0, 1)
-#         self.center = vec(WIDTH / 2, HEIGHT / 2)
-#         self._layer = ARROW_LAYER # good for fuel too
-#         self.groups = self.game.all_sprites, self.game.arrows
-#         pg.sprite.Sprite.__init__(self, self.groups)
-#         self.image = self.game.arrow_image
-#         self.image.set_colorkey(BLACK)
-#         self.rect = self.image.get_rect()
-#         scale = .5
-#         self.image = pg.transform.scale(self.image, (int(self.rect.width * scale), int(self.rect.height * scale)))
-#         self.image_original = self.image
-#         self.rect = self.image.get_rect()
-#         self.circle_radius = 400
-#
-#         self.angle = self.up.angle_to(self.player.pos - self.center) + 90
-#         self.image_angle = -(self.angle + 90) % 360
-#
-#         self.pos_from_center = vec()
-#         self.pos_from_center.from_polar((self.circle_radius, self.angle))
-#         self.pos = vec(self.center + self.pos_from_center)
-#         self.rect.center = self.pos
-#
-#     def update(self):
-#         self.rect.center = self.pos
-#         self.angle = self.up.angle_to(self.game.player.pos - self.center) + 90
-#         self.image_angle = -(self.angle + 90) % 360
-#         self.pos_from_center.from_polar((self.circle_radius, self.angle))
-#         self.pos = vec(self.center + self.pos_from_center)
-#         self.rect.center = self.pos
-#         self.image, self.rect = rotate_image_about_center(self.image_original, self.rect, self.image_angle)
-#
+# FROM PLAYER CLASS UPDATE
+        # self.arrow_check()
+
+    # def arrow_check(self):
+    #     self.distance_from_center = int(abs(self.center.distance_to(self.pos)))
+    #     if self.distance_from_center > (HEIGHT ** 2 + WIDTH ** 2) ** 0.5 / 2:
+    #         if len(self.game.arrows) == 0:
+    #             Arrow(self.game, self)
+    #             self.game.arrow_msg = self.distance_from_center
+    #     else:
+    #         Arrow.kill(self.game.arrows)
+    #         self.game.arrow_msg = None
+
+# noinspection PyArgumentList
+class Arrow(pg.sprite.Sprite):
+    """Arrow used to show player position when off the map."""
+    def __init__(self, game):
+        self.game = game
+        self.up = vec(0, 1)
+        self.center = vec(WIDTH / 2, HEIGHT / 2)
+        self._layer = ARROW_LAYER
+        self.groups = self.game.all_sprites, self.game.arrows
+        pg.sprite.Sprite.__init__(self, self.groups)
+        self.image = self.game.arrow_image
+        self.rect = self.image.get_rect()
+        scale = 1.5
+        self.image = pg.transform.scale(self.image, (int(self.rect.width * scale), int(self.rect.height * scale)))
+        self.image.set_colorkey(WHITE)
+        self.image_original = self.image
+        self.rect = self.image.get_rect()
+        self.circle_radius = 300
+
+        self.angle = self.up.angle_to(self.game.player.pos - self.center) + 90
+        self.image_angle = -(self.angle + 90) % 360
+
+        self.pos_from_center = vec()
+        self.pos_from_center.from_polar((self.circle_radius, self.angle))
+        self.pos = vec(self.center + self.pos_from_center)
+        self.rect.center = self.pos
+
+    def update(self):
+        if not (0 < self.game.player.pos.x < WIDTH and 0 < self.game.player.pos.y < HEIGHT):
+            self.angle = self.up.angle_to(self.game.player.pos - self.center) + 90
+            self.image_angle = -(self.angle + 90) % 360
+            self.pos_from_center.from_polar((self.circle_radius, self.angle))
+            self.pos = vec(self.center + self.pos_from_center)
+            self.image, self.rect = rotate_image_about_center(self.image_original, self.rect, self.image_angle)
+            self.rect.center = self.pos
+        else:
+            self.rect.center = vec(-200, 200)
+
 
 class Explosion(pg.sprite.Sprite):
-    def __init__(self, game, center, size):
+    def __init__(self, game, center, size, speed=25):
         self._layer = EXPLOSION_LAYER
         self.groups = game.all_sprites
         pg.sprite.Sprite.__init__(self, self.groups)
@@ -378,7 +444,7 @@ class Explosion(pg.sprite.Sprite):
         self.rect.center = center
         self.frame = 0
         self.last_update = pg.time.get_ticks()
-        self.frame_rate = 25
+        self.frame_rate = speed
 
     def update(self):
         now = pg.time.get_ticks()
@@ -393,14 +459,15 @@ class Explosion(pg.sprite.Sprite):
                 self.rect.center = center
 
 
-
 # SPRITE FUNCTIONS
+# noinspection PyArgumentList
 def collision_point(pos_a, pos_b, radius_a, radius_b):
     collision_point_x = ((pos_a.x * radius_b) + (pos_b.x * radius_a)) / (radius_a + radius_b)
     collision_point_y = ((pos_a.y * radius_b) + (pos_b.y * radius_a)) / (radius_a + radius_b)
     return vec(collision_point_x, collision_point_y)
 
 
+# noinspection PyArgumentList
 def collision_new_velocity(vel_a, vel_b, mass_a, mass_b):
     new_vel_a_x = (vel_a.x * (mass_a - mass_b) + 2 * mass_b * vel_b.x) / (mass_a + mass_b)
     new_vel_a_y = (vel_a.y * (mass_a - mass_b) + 2 * mass_b * vel_b.y) / (mass_a + mass_b)

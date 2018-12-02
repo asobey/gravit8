@@ -1,5 +1,5 @@
 #!python3
-#GRAVIT8 - Physics game
+# GRAVIT8 - Physics Game
 
 # --- ATTRIBUTIONS / CREDITS ---
 # Music By: his work is licensed under the Creative Commons Namensnennung - Weitergabe unter gleichen Bedingungen 3.0
@@ -11,13 +11,12 @@
 
 # --- IMPORTS ---
 import pygame as pg
-from settings import *
 from sprites import *
 from os import path, environ
 from random import choice, randrange
-import time
 
 
+# noinspection PyArgumentList
 class Game:
     def __init__(self):  # initialize game window, ect
         environ['SDL_VIDEO_CENTERED'] = '1'
@@ -48,7 +47,8 @@ class Game:
         self.player_image = pg.image.load(path.join(self.img_dir, PLAYER_FILE))
         self.planet_images = []
         for i in range(1, 11):
-            self.planet_images.append(pg.image.load(path.join(self.img_dir, 'planets', 'p{}shaded.png'.format(i))).convert())
+            self.planet_images.append(pg.image.load(path.join(self.img_dir, 'planets', 'p{}shaded.png'.format(i)))
+                                      .convert())
         self.moon_images = []
         for i in range(1, 4):
             self.moon_images.append(pg.image.load(path.join(self.img_dir, 'moons', 'Moon{}.png'.format(i))).convert())
@@ -62,10 +62,7 @@ class Game:
         self.loadscreen_rect = self.loadscreen.get_rect()
 
         # BUILDING EXPLOSION ANIMATIONS
-        self.explosion_animation = {}
-        self.explosion_animation['lg'] = []
-        self.explosion_animation['sm'] = []
-        self.explosion_animation['player'] = []
+        self.explosion_animation = {'lg': [], 'sm': [], 'tiny': [], 'player': []}
         for i in range(0, 9):
             filename = 'tank_explosion{}.png'.format(i)
             img = pg.image.load(path.join(self.img_dir, 'explosions', filename)).convert()
@@ -74,8 +71,11 @@ class Game:
             self.explosion_animation['lg'].append(img_lg)
             img_sm = pg.transform.scale(img, (10, 10))
             self.explosion_animation['sm'].append(img_sm)
+            img_tiny = pg.transform.scale(img, (6, 6))
+            self.explosion_animation['tiny'].append(img_tiny)
             filename = 'sonicExplosion0{}.png'.format(i)
-            img = pg.image.load(path.join(self.img_dir, 'explosions', filename)).convert()
+            img_pl = pg.image.load(path.join(self.img_dir, 'explosions', filename)).convert()
+            img = pg.transform.scale(img_pl, (80, 80))
             self.explosion_animation['player'].append(img)
 
         # Load Sounds / Music
@@ -84,14 +84,17 @@ class Game:
         self.moon_crash_sound = pg.mixer.Sound(path.join(self.snd_dir, MOON_CRASH_SND_FILE))
         self.moon_crash_sound.set_volume(.03)
         self.player_crash_sound = pg.mixer.Sound(path.join(self.snd_dir, PLAYER_CRASH_SND_FILE))
-        self.player_crash_sound.set_volume(1)
+        self.player_crash_sound.set_volume(.9)
         self.launch_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SND_FILE))
-        self.launch_sound.set_volume(1)
+        self.launch_sound.set_volume(.8)
+        self.jetpack_sound = pg.mixer.Sound(path.join(self.snd_dir, JETPACK_SND_FILE))
+        self.jetpack_sound.set_volume(.3)
 
     def new(self):
         """New Game / Reset Game"""
         self.playing = True
         self.score = 0
+        # GROUPS AND LAYERS
         self.all_sprites = pg.sprite.LayeredUpdates()  # Lets you assign layer to group to render in correct order
         self.planets = pg.sprite.Group()
         self.moons = pg.sprite.Group()
@@ -99,21 +102,23 @@ class Game:
         self.stars = pg.sprite.Group()
         self.pickups = pg.sprite.Group()
         self.arrows = pg.sprite.Group()
-
+        # SCREEN
+        self.frame_coordinates = vec(0, 0)
         self.first_planet = Planet(self)  # Add 1st Planet
         self.player = Player(self, self.first_planet)  # Add Player on First Planet
         self.added_planets = 0
+        self.spawn_planets(PLANETS + self.added_planets)
+        self.arrow = Arrow(self)
 
         # Messages
         self.corner_msg = 'Traverse & Score!'
         self.corner_msg_flag = False
         self.corner_msg_start_time = pg.time.get_ticks()
 
-        self.arrow_msg = ''
+        self.arrow_msg = False
 
-        # TODO: self.something_timer = 0
         # Play Music
-        pg.mixer.music.load(path.join(self.snd_dir, START_MUSIC))
+        pg.mixer.music.load(path.join(self.snd_dir, LEVEL_1_MUSIC))
 
         # Start Game Loop
         self.run()
@@ -122,6 +127,7 @@ class Game:
     def run(self):
         """ Game Loop """
         pg.mixer.music.play(loops=-1)
+        self.start_level_screen('This sector in no longer stable...')
         while self.playing:
             self.clock.tick(FPS)
             self.events()
@@ -142,10 +148,10 @@ class Game:
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
                     self.added_planets += 1
-                    self.spawn_planets(PLANETS + self.added_planets)
+                    self.spawn_planets(1 + self.added_planets)
                     # self.player.jump()
-                if event.key == pg.K_m:
-                    Moon(self)
+                if event.key == pg.K_j:
+                    self.jump()
                 if event.key == pg.K_l:
                     self.playing = False
                 if event.key == pg.K_ESCAPE:
@@ -164,34 +170,38 @@ class Game:
     # --- DRAW RENDER ---
     def draw(self):  # game loop - draw / render
         self.screen.fill(BG_COLOR)
-        self.screen.blit(self.background, self.background_rect)
+        self.screen.blit(self.background, self.frame_coordinates)
         self.all_sprites.draw(self.screen)  # All sprites group takes care of layers
         self.draw_corner_msg()
+        self.draw_arrow_msg()
         self.draw_text(f'Highscore: {self.highscore}', 20, WHITE, WIDTH / 2, 10)
-        # self.draw_arrow_msg()
         self.draw_text(self.score, 25, WHITE, WIDTH / 2, 30)
         self.draw_fuel_bar(self.screen, 5, 5, self.player.fuel_level)
         pg.display.flip()  # after everything is drawn, flip display
 
-    def draw_text(self, text, size, color, x, y, font_name=FONT_NAME):
+    def draw_text(self, text, size, color, x, y, font_name=FONT_NAME, alpha=255):
         font = pg.font.Font(pg.font.match_font(font_name), size)
         text_surface = font.render(str(text), True, color)
+        text_surface.set_alpha(alpha)  # the alpha thing does not appear to be working
         text_rect = text_surface.get_rect()
         text_rect.midtop = (x, y)
         self.screen.blit(text_surface, text_rect)
 
-    # def draw_arrow_msg(self):
-    #     if self.arrow_msg is not None:
-    #         self.draw_text(self.player.distance_from_center, 100, WHITE, WIDTH / 2, HEIGHT / 2 - 50)
+    def draw_arrow_msg(self):
+        if self.arrow_msg:
+            self.draw_text(self.player.distance_from_center, 100, WHITE, WIDTH / 2, HEIGHT / 2 + 50)
 
     def draw_corner_msg(self):
         if self.corner_msg is not None:
             if self.corner_msg_flag is False:
                 self.corner_msg_start_time = pg.time.get_ticks()
                 self.corner_msg_flag = True
+                self.red = 255
             else:
                 if pg.time.get_ticks() - self.corner_msg_start_time < 2000:
-                    self.draw_text(self.corner_msg, 35, RED, WIDTH - 400, 15)
+                    self.draw_text(self.corner_msg, 35, (self.red, 0, 0), WIDTH - 220, 15)
+                    if self.red > 0:
+                        self.red -= 1.5
                 else:
                     self.corner_msg = None
                     self.corner_msg_flag = False
@@ -199,29 +209,30 @@ class Game:
     def draw_fuel_bar(self, surface, x, y, percent):
         if percent < 0:
             percent = 0
-        BAR_LENGTH = 300  # Pixels
-        BAR_HEIGHT = 20
-        fill = (percent / 150) * BAR_LENGTH
-        outline_rect = pg.Rect(x, y, BAR_LENGTH, BAR_HEIGHT)
-        fill_rect = pg.Rect(x, y, fill, BAR_HEIGHT)
+        fill = (percent / 150) * FUEL_BAR_LENGTH
+        outline_rect = pg.Rect(x, y, FUEL_BAR_LENGTH, FUEL_BAR_HEIGHT)
+        fill_rect = pg.Rect(x, y, fill, FUEL_BAR_HEIGHT)
         if percent > 100:
             pg.draw.rect(surface, GREEN, fill_rect)
         else:
             pg.draw.rect(surface, YELLOW, fill_rect)
         pg.draw.rect(surface, WHITE, outline_rect, 2)
-        outline_rect2 = pg.Rect(x, y, 1/1.5 * BAR_LENGTH, BAR_HEIGHT)
+        outline_rect2 = pg.Rect(x, y, 1/1.5 * FUEL_BAR_LENGTH, FUEL_BAR_HEIGHT)
         pg.draw.rect(surface, WHITE, outline_rect2, 2)
         self.draw_text('FUEL', 25, YELLOW, 20, 25, 'playbill')
         self.draw_text('TO JUMP', 25, GREEN, 235, 25, 'playbill')
 
-    def draw_lives(surf, x, y, lives, img):
-        for i in range(lives):
-            img_rect = img.get_rect()
-            img_rect.x = x + 30 * i
-            img_rect.y = y
-            surf.blit(img, img_rect)
+    # def draw_lives(self, surface, x, y, lives, img):
+    #     for i in range(lives):
+    #         img_rect = img.get_rect()
+    #         img_rect.x = x + 30 * i
+    #         img_rect.y = y
+    #         surface.blit(img, img_rect)
 
-    def spawn_planets(self, n):
+    def jump(self):
+        pass
+
+    def spawn_planets(self, n):  # This is used with spawn_planet so that
         while len(self.planets) < n:
             self.spawn_planet()
 
@@ -232,23 +243,36 @@ class Game:
                 if new_planet.pos.distance_to(planet.pos) < (new_planet.radius + planet.radius + 5):
                     for moon in new_planet.moons:
                         moon.kill()
+                    for fuel in new_planet.fuels:
+                        fuel.kill()
                     new_planet.kill()
 
-
     def show_start_screen(self):
-        pg.mixer.music.load(path.join(self.snd_dir, LEVEL_1_MUSIC))
+        pg.mixer.music.load(path.join(self.snd_dir, START_MUSIC))
         pg.mixer.music.play(loops=-1)
         self.screen.blit(self.loadscreen, self.loadscreen_rect)
-        self.draw_text(TITLE, 48, WHITE, WIDTH / 2, HEIGHT / 4)
-        self.draw_text("Arrows (or W-A-S-D) to move & Spacebar to Jump", 22, BLACK, WIDTH / 2, HEIGHT / 2)
-        self.draw_text("Press any key to play...", 22, WHITE, WIDTH / 2, HEIGHT * 3/4)
-        self.draw_text("HIGH SCORE: " + str(self.highscore), 18, BLACK, WIDTH / 2, 5)
+        self.draw_text("HIGH SCORE: " + str(self.highscore), 22, WHITE, WIDTH / 2, 30)
+        self.draw_text(TITLE, 120, WHITE, WIDTH * 1 / 4, HEIGHT / 4)
+        self.draw_text("[A] & [D] to Move/Rotate, [W] to launch, [Arrows] for Jetpack Control", 30, BLACK, WIDTH * 4 / 6, HEIGHT * 3 / 5)
+        self.draw_text("Press any key to play...", 30, WHITE, WIDTH * 3 / 5, HEIGHT * 7/8)
         pg.display.flip()
         self.wait_for_key()
         pg.mixer.music.fadeout(500)
 
+    def start_level_screen(self, message):
+        self.screen.fill(BLACK)
+        start_time = pg.time.get_ticks()
+        color_alpha = 255
+        while pg.time.get_ticks() - start_time < 1000:
+            color = (int(color_alpha), int(color_alpha), int(color_alpha), int(color_alpha))
+            self.draw_text(message, 48, color, WIDTH / 2, HEIGHT / 2 - 48)
+            if color_alpha > 0:
+                color_alpha -= .4
+            pg.display.flip()
+        return
+
     def show_game_over_screen(self):
-        pg.mixer.music.load(path.join(self.snd_dir, LEVEL_1_MUSIC))
+        pg.mixer.music.load(path.join(self.snd_dir, START_MUSIC))
         pg.mixer.music.play(loops=-1)
         if self.running:
             self.screen.blit(self.loadscreen, self.loadscreen_rect)
@@ -275,7 +299,6 @@ class Game:
                     self.running = False
                 if event.type == pg.KEYUP:
                     waiting = False
-
 
 
 if __name__ == '__main__':
