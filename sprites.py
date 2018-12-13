@@ -24,9 +24,9 @@ class Player(pg.sprite.Sprite):
         self.scale = 1/4
         self.image = pg.transform.scale(self.image, (int(self.rect.width * self.scale), int(self.rect.height *
                                                                                             self.scale)))
+        self.rect = self.image.get_rect()
         self.image_original = self.image  # need so that you do not ruin image over time
         self.image_original.set_colorkey(BLACK)
-        self.rect = self.image.get_rect()
         # Off Map Image
         self.off_map_scale = 4
         self.off_map_image = pg.transform.scale(self.image, (int(self.rect.width * self.off_map_scale),
@@ -345,6 +345,41 @@ class Moon(pg.sprite.Sprite):
                 Explosion(self.game, self.pos, 'sm')
                 # ToDo: Change to have new planet steel moon
 
+
+# noinspection PyArgumentList
+class Sun(pg.sprite.Sprite):
+    def __init__(self, game):
+        self._layer = SUN_LAYER
+        pg.sprite.Sprite.__init__(self, game.all_sprites)
+        self.game = game
+        self.image = self.game.sun_image  # scale image b/c original is too big
+        self.rect = self.image.get_rect()
+        self.image.set_colorkey(BLACK)  # This removes the black image outline and makes it background
+        self.scale = 1
+        self.image = pg.transform.scale(self.image, (int(self.rect.width * self.scale), int(self.rect.height *
+                                                                                            self.scale)))
+        self.rect = self.image.get_rect()
+        self.image_original = self.image  # need so that you do not ruin image over time
+        self.image_original.set_colorkey(BLACK)
+
+        self.radius = self.rect.width / 2
+
+        self.vel = vec(.2, -.1)
+        self.pos = vec(-self.radius + 50, HEIGHT)
+        self.rect.center = self.pos
+
+        pg.draw.circle(self.image, BLUE, self.rect.center, int(self.radius), 30)
+        self.up = vec(0, 1)
+
+        self.angle = -90  # puts player at top of planet
+        self.image_angle = (self.angle + 90) % 360  # player image standing straight up
+
+    def update(self):
+        #self.image_angle += 1
+        self.image, self.rect = rotate_image_about_center(self.image_original, self.rect, self.image_angle)
+        self.pos += self.vel
+        self.rect.center = self.pos
+        pg.draw.circle(self.image, BLUE, self.rect.center, int(self.radius), 30 )
 
 # noinspection PyArgumentList
 class Fuel(pg.sprite.Sprite):

@@ -52,9 +52,10 @@ class Game:
         self.moon_images = []
         for i in range(1, 4):
             self.moon_images.append(pg.image.load(path.join(self.img_dir, 'moons', 'Moon{}.png'.format(i))).convert())
-
+        self.sun_image = pg.image.load(path.join(self.img_dir, SUN_FILE)).convert()
         self.fuel_image = pg.image.load(path.join(self.img_dir, 'pickups', FUEL_FILE)).convert()
         self.arrow_image = pg.image.load(path.join(self.img_dir, ARROW_FILE)).convert()
+        # LOAD BACKGROUNDS
         self.background = pg.image.load(path.join(self.img_dir, BACKGROUND_FILE)).convert()
         self.background_rect = self.background.get_rect()
         print(f'BACKGROUND WIDTH, HEIGHT: {self.background_rect.width}, {self.background_rect.height}')
@@ -109,6 +110,7 @@ class Game:
         self.added_planets = 0
         self.spawn_planets(PLANETS + self.added_planets)
         self.arrow = Arrow(self)
+        self.sun = Sun(self)
 
         # Messages
         self.corner_msg = 'Traverse & Score!'

@@ -20,6 +20,7 @@ JETPACK_SND_FILE = 'jetpack_on.wav'
 LEVEL_1_MUSIC = 'The last adventure game.mp3'
 START_MUSIC = 'Underwater.mp3'
 ARROW_FILE = 'ornamented_arrow.png'
+SUN_FILE = 'sun-png-5467.png'
 
 FUEL_FILE = 'tanks_barrelGreen.png'
 START_SCREEN_FILE = 'redplanet_0.png'
@@ -55,10 +56,11 @@ MOON_MAX_SIZE = 10
 # LAYERS
 PLAYER_LAYER = 6
 MOON_LAYER = 5
-PLANET_LAYER = 1
-BACKGROUND = 0
-EXPLOSION_LAYER = 3
 ARROW_LAYER = 4
+EXPLOSION_LAYER = 3
+PLANET_LAYER = 2
+SUN_LAYER = 1
+BACKGROUND = 0
 
 # DEFINE COLORS
 WHITE = (255, 255, 255)
