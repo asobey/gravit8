@@ -88,6 +88,8 @@ class Game:
         self.player_crash_sound.set_volume(.9)
         self.launch_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SND_FILE))
         self.launch_sound.set_volume(.8)
+        self.jump_sector_sound = pg.mixer.Sound(path.join(self.snd_dir, JUMP_SECTOR_SND_FILE))
+        self.jump_sector_sound.set_volume(1)
         self.jetpack_sound = pg.mixer.Sound(path.join(self.snd_dir, JETPACK_SND_FILE))
         self.jetpack_sound.set_volume(.3)
 
@@ -151,7 +153,6 @@ class Game:
                 if event.key == pg.K_SPACE:
                     self.added_planets += 1
                     self.spawn_planets(1 + self.added_planets)
-                    # self.player.jump()
                 if event.key == pg.K_j:
                     self.jump()
                 if event.key == pg.K_l:
